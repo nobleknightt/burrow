@@ -1,0 +1,42 @@
+[project]
+name = "burrow"
+version = "0.1.0"
+description = "CLI for querying PostgreSQL databases behind a bastion host via SSH tunnel"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "paramiko>=4.0.0",
+    "psycopg[binary]>=3.3.3",
+    "tabulate>=0.10.0",
+    "tomli-w>=1.2.0",
+]
+
+[project.scripts]
+burrow = "burrow.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/burrow"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=burrow --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src/burrow"]
+omit = [
+    "src/burrow/commands/dig.py",
+    "src/burrow/commands/shell.py",
+    "src/burrow/commands/describe.py",
+    "src/burrow/commands/config.py",
+    "src/burrow/tunnel.py",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]

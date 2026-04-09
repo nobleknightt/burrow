@@ -1,0 +1,28 @@
+# burrow config example — run `burrow config set` to configure interactively
+# or copy this file to ~/.config/burrow/config.toml and edit manually
+#
+# Override config path: export BURROW_CONFIG=/path/to/config.toml
+# Any field can be set via environment variable (takes priority over file):
+#   BURROW_SSH_HOST, BURROW_SSH_USER, BURROW_SSH_KEY_PATH, BURROW_SSH_PORT
+#   BURROW_DB_HOST, BURROW_DB_PORT, BURROW_DB_USER, BURROW_DB_PASSWORD
+#   BURROW_DB_NAME, BURROW_DB_SCHEMA, BURROW_TUNNEL_LOCAL_PORT, BURROW_CONNECTION_TIMEOUT
+
+[default]
+ssh_host     = "bastion.example.com"
+ssh_user     = "ec2-user"
+ssh_key_path = "~/.ssh/id_rsa"
+db_host      = "mydb.cluster-xyz.us-east-1.rds.amazonaws.com"
+db_user      = "myuser"
+db_password  = "secret"
+db_name      = "mydb"
+db_schema    = "public"
+
+[staging]
+ssh_host     = "bastion-staging.example.com"
+ssh_user     = "ec2-user"
+ssh_key_path = "~/.ssh/id_rsa"
+db_host      = "mydb-staging.cluster-xyz.us-east-1.rds.amazonaws.com"
+db_user      = "myuser"
+db_password  = "secret"
+db_name      = "mydb_staging"
+db_schema    = "public"
