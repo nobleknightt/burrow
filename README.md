@@ -4,6 +4,12 @@ CLI for querying PostgreSQL databases behind a bastion host via SSH tunnel.
 
 Named after the mole's burrow — a tunnel dug quietly underground to reach somewhere it has no business being. That's exactly what this tool does: bores through a bastion over SSH and surfaces inside your database as if the database were local.
 
+## Claude Code Integration
+
+This repository includes [`SKILL.md`](SKILL.md) — a skill definition that enables AI coding agents (primarily [Claude Code](https://code.claude.com)) to use burrow effectively. The skill teaches Claude when and how to use burrow for database operations.
+
+While designed for Claude Code, the skill's markdown documentation can be used by other AI coding assistants as reference material.
+
 ## Setup
 
 **Recommended (uv):**
