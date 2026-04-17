@@ -10,30 +10,36 @@ This repository includes [`SKILL.md`](SKILL.md) — a skill definition that enab
 
 While designed for Claude Code, the skill's markdown documentation can be used by other AI coding assistants as reference material.
 
+## Installation
+
+- **uv (recommended):**
+
+  ```bash
+  uv tool install git+https://github.com/nobleknightt/burrow.git
+  ```
+
+  If this is your first `uv tool install`, restart your shell so `~/.local/bin` is on `PATH`.
+
+- **pip:**
+
+  ```bash
+  pip install git+https://github.com/nobleknightt/burrow.git
+  ```
+
+  Restart your shell.
+
 ## Setup
 
-**Recommended (uv):**
-
-```bash
-uv tool install git+https://github.com/nobleknightt/burrow.git
-```
-
-If this is your first `uv tool install`, restart your shell so `~/.local/bin` is on `PATH`, then:
+Run the interactive wizard to configure your first profile:
 
 ```bash
 burrow config set
 ```
 
-**pip:**
+To configure additional named profiles (e.g. staging, prod), pass `--profile`:
 
 ```bash
-pip install git+https://github.com/nobleknightt/burrow.git
-```
-
-Restart your shell, then:
-
-```bash
-burrow config set
+burrow --profile staging config set
 ```
 
 ## Configuration
@@ -85,6 +91,10 @@ burrow describe --table users      # columns, types, PKs
 
 # interactive REPL
 burrow shell
+
+# configure profiles
+burrow config set
+burrow --profile staging config set
 
 # check resolved config (passwords redacted)
 burrow config get
