@@ -6,8 +6,9 @@ Priority (highest to lowest):
   2. Profile in config file  ~/.config/burrow/config.toml  (or $BURROW_CONFIG)
   3. [default] profile as fallback
 
-Config file format:
+Config file format (SSH tunnel mode):
   [default]
+  use_ssh      = true
   ssh_host     = "bastion.example.com"
   ssh_user     = "ec2-user"
   ssh_key_path = "~/.ssh/id_rsa"
@@ -16,6 +17,14 @@ Config file format:
   db_password  = "secret"
   db_name      = "mydb"
   db_schema    = "public"
+
+Config file format (direct connection mode):
+  [local]
+  use_ssh      = false
+  db_host      = "localhost"
+  db_user      = "myuser"
+  db_password  = "secret"
+  db_name      = "mydb"
 
   [staging]
   ssh_host     = "bastion-staging.example.com"
@@ -29,9 +38,10 @@ from pathlib import Path
 
 # Maps config key to (env var, required, default)
 _FIELDS: dict[str, tuple[str, bool, object]] = {
-    "ssh_host": ("BURROW_SSH_HOST", True, None),
+    "use_ssh": ("BURROW_USE_SSH", False, True),
+    "ssh_host": ("BURROW_SSH_HOST", False, None),  # conditionally required when use_ssh=True
     "ssh_user": ("BURROW_SSH_USER", False, "ec2-user"),
-    "ssh_key_path": ("BURROW_SSH_KEY_PATH", True, None),
+    "ssh_key_path": ("BURROW_SSH_KEY_PATH", False, None),  # conditionally required when use_ssh=True
     "ssh_port": ("BURROW_SSH_PORT", False, 22),
     "db_host": ("BURROW_DB_HOST", True, None),
     "db_port": ("BURROW_DB_PORT", False, 5432),
@@ -44,6 +54,7 @@ _FIELDS: dict[str, tuple[str, bool, object]] = {
 }
 
 _INT_FIELDS = {"ssh_port", "db_port", "tunnel_local_port", "connection_timeout"}
+_BOOL_FIELDS = {"use_ssh"}
 _SENSITIVE = {"db_password"}
 
 CONFIG_FILE_ENV = "BURROW_CONFIG"
@@ -53,12 +64,13 @@ DEFAULT_PROFILE = "default"
 
 @dataclass
 class DatabaseConfig:
-    ssh_host: str
-    ssh_key_path: str
     db_host: str
     db_user: str
     db_password: str
     db_name: str
+    use_ssh: bool = True
+    ssh_host: str | None = None
+    ssh_key_path: str | None = None
     ssh_user: str = "ec2-user"
     ssh_port: int = 22
     db_port: int = 5432
@@ -67,8 +79,8 @@ class DatabaseConfig:
     connection_timeout: int = 10
 
     def __post_init__(self) -> None:
-        # Expand ~ in key path
-        self.ssh_key_path = str(Path(self.ssh_key_path).expanduser())
+        if self.ssh_key_path:
+            self.ssh_key_path = str(Path(self.ssh_key_path).expanduser())
 
 
 def load_config(profile: str = DEFAULT_PROFILE) -> DatabaseConfig:
@@ -84,7 +96,12 @@ def load_config(profile: str = DEFAULT_PROFILE) -> DatabaseConfig:
         # 1. env var
         if env_var in os.environ:
             value = os.environ[env_var]
-            resolved[key] = int(value) if key in _INT_FIELDS else value
+            if key in _INT_FIELDS:
+                resolved[key] = int(value)
+            elif key in _BOOL_FIELDS:
+                resolved[key] = value.lower() not in ("false", "0", "no", "off")
+            else:
+                resolved[key] = value
             continue
 
         # 2. config file
@@ -100,6 +117,13 @@ def load_config(profile: str = DEFAULT_PROFILE) -> DatabaseConfig:
 
         if required:
             missing.append(f"  {key}  (env: {env_var})")
+
+    # SSH fields are conditionally required when use_ssh is True
+    if resolved.get("use_ssh", True):
+        if not resolved.get("ssh_host"):
+            missing.append("  ssh_host  (env: BURROW_SSH_HOST)")
+        if not resolved.get("ssh_key_path"):
+            missing.append("  ssh_key_path  (env: BURROW_SSH_KEY_PATH)")
 
     if missing:
         hint = _missing_hint(profile, missing)
@@ -137,11 +161,20 @@ def _missing_hint(profile: str, missing: list[str]) -> str:
         "set them via environment variables, or add a config file:",
         f"  {config_path}",
         "",
-        "example config:",
+        "example config (SSH tunnel):",
         "  [default]",
+        '  use_ssh      = true',
         '  ssh_host     = "bastion.example.com"',
         '  ssh_key_path = "~/.ssh/id_rsa"',
-        '  db_host     = "mydb.cluster.us-east-1.rds.amazonaws.com"',
+        '  db_host      = "mydb.cluster.us-east-1.rds.amazonaws.com"',
+        '  db_user      = "myuser"',
+        '  db_password  = "secret"',
+        '  db_name      = "mydb"',
+        "",
+        "example config (direct connection):",
+        "  [default]",
+        '  use_ssh      = false',
+        '  db_host      = "localhost"',
         '  db_user      = "myuser"',
         '  db_password  = "secret"',
         '  db_name      = "mydb"',

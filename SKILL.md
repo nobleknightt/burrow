@@ -1,13 +1,13 @@
 ---
 name: burrow
-description: Queries PostgreSQL databases behind SSH bastions using the burrow CLI. Use when the user needs to run SQL queries, inspect database tables or schemas, explore data structure, analyze data, or connect to remote PostgreSQL databases through SSH tunnels. Trigger for database queries, postgres, postgresql, SQL, SSH tunnel, bastion host, remote database, schema inspection, table exploration, data analysis, burrow CLI.
+description: Queries PostgreSQL databases using the burrow CLI — primarily via SSH tunnel through a bastion host, with optional direct connection mode. Use when the user needs to run SQL queries, inspect database tables or schemas, explore data structure, analyze data, or connect to remote PostgreSQL databases. Trigger for database queries, postgres, postgresql, SQL, SSH tunnel, bastion host, remote database, schema inspection, table exploration, data analysis, burrow CLI.
 when_to_use: database queries, inspect tables, SQL, postgres, postgresql, SSH tunnel, bastion, remote database, burrow, schema inspection, data exploration, table structure
 allowed-tools: Bash(burrow *)
 ---
 
-# Burrow — PostgreSQL via SSH Tunnel
+# Burrow — PostgreSQL via SSH Tunnel (or Direct Connection)
 
-`burrow` opens an SSH tunnel through a bastion host and runs queries against any PostgreSQL database behind it.
+`burrow` primarily opens an SSH tunnel through a bastion host and runs queries against PostgreSQL databases behind it. It also supports direct connections when no SSH tunnel is needed (`use_ssh = false`).
 
 ## Configuration priority
 
@@ -67,6 +67,8 @@ burrow config unset <profile>         # remove a profile
 
 ## Config file format (`~/.config/burrow/config.toml`)
 
+SSH tunnel (default — `use_ssh` defaults to `true` when omitted):
+
 ```toml
 [default]
 ssh_host     = "bastion.example.com"
@@ -82,6 +84,18 @@ db_schema    = "public"
 
 [staging]
 # same fields, different values
+```
+
+Direct connection (no SSH — set `use_ssh = false`, SSH fields not required):
+
+```toml
+[local]
+use_ssh     = false
+db_host     = "localhost"
+db_port     = 5432
+db_user     = "myuser"
+db_password = "secret"
+db_name     = "mydb"
 ```
 
 ## Workflow

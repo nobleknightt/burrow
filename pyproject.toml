@@ -1,7 +1,7 @@
 [project]
 name = "burrow"
-version = "0.1.0"
-description = "CLI for querying PostgreSQL databases behind a bastion host via SSH tunnel"
+version = "0.2.0"
+description = "CLI for querying PostgreSQL databases via SSH tunnel or direct connection"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

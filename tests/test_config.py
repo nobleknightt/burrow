@@ -159,3 +159,76 @@ class TestDatabaseConfig:
     def test_expands_tilde_in_key_path(self, env):
         cfg = load_config()
         assert "~" not in cfg.ssh_key_path
+
+    def test_ssh_key_path_none_when_use_ssh_false(self, monkeypatch):
+        for k, v in {
+            "BURROW_USE_SSH": "false",
+            "BURROW_DB_HOST": "localhost",
+            "BURROW_DB_USER": "myuser",
+            "BURROW_DB_PASSWORD": "secret",
+            "BURROW_DB_NAME": "mydb",
+        }.items():
+            monkeypatch.setenv(k, v)
+        cfg = load_config()
+        assert cfg.use_ssh is False
+        assert cfg.ssh_host is None
+        assert cfg.ssh_key_path is None
+
+
+class TestDirectConnectionMode:
+    def test_no_ssh_fields_required_when_use_ssh_false(self, monkeypatch):
+        for k, v in {
+            "BURROW_USE_SSH": "false",
+            "BURROW_DB_HOST": "db.example.com",
+            "BURROW_DB_USER": "myuser",
+            "BURROW_DB_PASSWORD": "secret",
+            "BURROW_DB_NAME": "mydb",
+        }.items():
+            monkeypatch.setenv(k, v)
+        cfg = load_config()
+        assert cfg.use_ssh is False
+        assert cfg.db_host == "db.example.com"
+        assert cfg.ssh_host is None
+        assert cfg.ssh_key_path is None
+
+    def test_use_ssh_false_from_env_various_falsy(self, monkeypatch):
+        base = {
+            "BURROW_DB_HOST": "db.example.com",
+            "BURROW_DB_USER": "u",
+            "BURROW_DB_PASSWORD": "p",
+            "BURROW_DB_NAME": "d",
+        }
+        for falsy in ("false", "0", "no", "off", "False", "NO"):
+            for k, v in base.items():
+                monkeypatch.setenv(k, v)
+            monkeypatch.setenv("BURROW_USE_SSH", falsy)
+            cfg = load_config()
+            assert cfg.use_ssh is False, f"expected False for BURROW_USE_SSH={falsy!r}"
+
+    def test_use_ssh_true_still_requires_ssh_fields(self, monkeypatch):
+        for k, v in {
+            "BURROW_USE_SSH": "true",
+            "BURROW_DB_HOST": "db.example.com",
+            "BURROW_DB_USER": "myuser",
+            "BURROW_DB_PASSWORD": "secret",
+            "BURROW_DB_NAME": "mydb",
+        }.items():
+            monkeypatch.setenv(k, v)
+        with pytest.raises(SystemExit):
+            load_config()
+
+    def test_use_ssh_false_from_config_file(self, tmp_path, monkeypatch):
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(
+            "[default]\n"
+            "use_ssh      = false\n"
+            'db_host      = "localhost"\n'
+            'db_user      = "myuser"\n'
+            'db_password  = "secret"\n'
+            'db_name      = "mydb"\n'
+        )
+        monkeypatch.setenv("BURROW_CONFIG", str(config_file))
+        cfg = load_config()
+        assert cfg.use_ssh is False
+        assert cfg.db_host == "localhost"
+        assert cfg.ssh_host is None

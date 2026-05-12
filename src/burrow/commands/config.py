@@ -26,16 +26,16 @@ from burrow.config import (
 )
 
 # (key, label, required, is_secret)
-_PROMPTS = [
-    # SSH
+_SSH_PROMPTS = [
     ("ssh_host", "Bastion host (IP or hostname)", True, False),
     ("ssh_user", "SSH username", False, False),
     ("ssh_key_path", "Path to SSH private key", True, False),
     ("ssh_port", "SSH port", False, False),
-    # RDS
+]
+
+_DB_PROMPTS = [
     ("db_host", "Database host", True, False),
     ("db_port", "Database port", False, False),
-    # Credentials
     ("db_name", "Database name", True, False),
     ("db_user", "Database username", True, False),
     ("db_password", "Database password", True, True),
@@ -67,7 +67,19 @@ def _cmd_set(args: argparse.Namespace) -> None:
 
     updated: dict[str, object] = {}
 
-    for key, label, required, is_secret in _PROMPTS:
+    # Determine SSH mode first
+    current_use_ssh = current.get("use_ssh", True)
+    ssh_display = "[Y/n]" if current_use_ssh else "[y/N]"
+    raw = input(f"  Use SSH tunnel? {ssh_display}: ").strip().lower()
+    if not raw:
+        use_ssh = current_use_ssh
+    else:
+        use_ssh = raw in ("y", "yes")
+    updated["use_ssh"] = use_ssh
+
+    prompts = (_SSH_PROMPTS if use_ssh else []) + _DB_PROMPTS
+
+    for key, label, required, is_secret in prompts:
         _, _, default = _FIELDS[key]
         current_val = current.get(key, default)
 
@@ -92,7 +104,6 @@ def _cmd_set(args: argparse.Namespace) -> None:
                 print(f"  {key} is required.", file=sys.stderr)
                 sys.exit(1)
             elif value:
-                # coerce int fields
                 from burrow.config import _INT_FIELDS
 
                 updated[key] = int(value) if key in _INT_FIELDS else value

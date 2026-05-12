@@ -24,9 +24,10 @@ def cmd_shell(args: argparse.Namespace) -> None:
     config = load_config(args.profile)
     fmt = "table"
 
-    print(
-        f"connecting to {config.db_name} on {config.db_host} via {config.ssh_host}..."
-    )
+    if config.use_ssh:
+        print(f"connecting to {config.db_name} on {config.db_host} via {config.ssh_host}...")
+    else:
+        print(f"connecting to {config.db_name} on {config.db_host}...")
 
     with PostgresSSHTunnel(config) as tunnel:
         conn = tunnel.get_connection()

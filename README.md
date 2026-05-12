@@ -1,6 +1,6 @@
 # burrow
 
-CLI for querying PostgreSQL databases behind a bastion host via SSH tunnel.
+CLI for querying PostgreSQL databases — directly or through an SSH tunnel to a bastion host.
 
 Named after the mole's burrow — a tunnel dug quietly underground to reach somewhere it has no business being. That's exactly what this tool does: bores through a bastion over SSH and surfaces inside your database as if the database were local.
 
@@ -50,10 +50,12 @@ Priority order (highest wins):
 2. **Config file** — `~/.config/burrow/config.toml` (override with `$BURROW_CONFIG`)
 3. **Built-in defaults** for optional fields
 
-The config file supports named profiles:
+The config file supports named profiles. Each profile can use SSH or connect directly:
 
 ```toml
+# SSH tunnel (default when use_ssh is omitted)
 [default]
+use_ssh      = true
 ssh_host     = "bastion.example.com"
 ssh_user     = "ec2-user"
 ssh_key_path = "~/.ssh/id_rsa"
@@ -62,6 +64,14 @@ db_user      = "myuser"
 db_password  = "secret"
 db_name      = "mydb"
 db_schema    = "public"
+
+# Direct connection (no SSH)
+[local]
+use_ssh      = false
+db_host      = "localhost"
+db_user      = "myuser"
+db_password  = "secret"
+db_name      = "mydb"
 
 [staging]
 ssh_host     = "bastion-staging.example.com"
@@ -73,6 +83,8 @@ db_password  = "secret"
 db_name      = "mydb_staging"
 db_schema    = "public"
 ```
+
+`use_ssh` defaults to `true`, so existing configs without it continue to work unchanged.
 
 ## Usage
 

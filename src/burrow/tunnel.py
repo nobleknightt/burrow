@@ -70,6 +70,9 @@ class PostgresSSHTunnel:
                 break
 
     def start(self) -> None:
+        if not self.config.use_ssh:
+            return
+
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.client.connect(
@@ -100,6 +103,15 @@ class PostgresSSHTunnel:
             self.client.close()
 
     def get_connection(self) -> psycopg.Connection:
+        if not self.config.use_ssh:
+            return psycopg.connect(
+                host=self.config.db_host,
+                port=self.config.db_port,
+                user=self.config.db_user,
+                password=self.config.db_password,
+                dbname=self.config.db_name,
+                options=f"-c search_path={self.config.db_schema}",
+            )
         if not self.transport or not self.local_port:
             raise RuntimeError("Tunnel not started - call start() first.")
         return psycopg.connect(
