@@ -7,7 +7,7 @@ import sys
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="burrow",
-        description="Query infrastructure databases through SSH tunnels",
+        description="Query databases through SSH tunnels or direct connections",
     )
     parser.add_argument(
         "--profile",
@@ -46,11 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--schema",
         "-s",
         metavar="SCHEMA",
-        help="Override the schema from .env",
+        help="Override the schema from config",
     )
-
-    # shell
-    sub.add_parser("shell", help="Interactive SQL REPL")
 
     # config
     p_cfg = sub.add_parser("config", help="Manage configuration and profiles")
@@ -69,6 +66,18 @@ def build_parser() -> argparse.ArgumentParser:
         "profile_name", metavar="PROFILE", help="Profile to remove"
     )
 
+    # skill
+    p_skill = sub.add_parser("skill", help="Manage Claude Code skill installation")
+    skill_sub = p_skill.add_subparsers(dest="skill_command", required=True)
+    p_skill_install = skill_sub.add_parser(
+        "install", help="Install skill to ~/.claude/skills/burrow/SKILL.md"
+    )
+    p_skill_install.add_argument(
+        "--path",
+        metavar="DIR",
+        help="Install to a custom directory instead of ~/.claude/skills/burrow",
+    )
+
     # easter egg - intentionally undocumented
     sub.add_parser("dig")
 
@@ -79,6 +88,10 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
+    from burrow.commands.skill import check_skill_outdated
+
+    check_skill_outdated()
+
     try:
         if args.command == "query":
             from burrow.commands.query import cmd_query
@@ -88,14 +101,14 @@ def main() -> None:
             from burrow.commands.describe import cmd_describe
 
             cmd_describe(args)
-        elif args.command == "shell":
-            from burrow.commands.shell import cmd_shell
-
-            cmd_shell(args)
         elif args.command == "config":
             from burrow.commands.config import cmd_config
 
-            cmd_config(args)  # dispatches internally on args.config_command
+            cmd_config(args)
+        elif args.command == "skill":
+            from burrow.commands.skill import cmd_skill
+
+            cmd_skill(args)
         elif args.command == "dig":
             from burrow.commands.dig import cmd_dig
 

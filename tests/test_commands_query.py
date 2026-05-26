@@ -1,4 +1,4 @@
-"""Tests for the query command (tunnel mocked)."""
+"""Tests for the query command (tunnel and driver mocked)."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -12,9 +12,9 @@ def make_args(sql, output="table", no_header=False, profile="default"):
     return SimpleNamespace(sql=sql, output=output, no_header=no_header, profile=profile)
 
 
-def make_tunnel(columns, rows):
-    """Return a mocked PostgresSSHTunnel context manager."""
-    description = [SimpleNamespace(name=col) for col in columns]
+def make_mocks(columns, rows):
+    """Return (tunnel_mock, driver_mock) for patching SSHTunnel and get_driver."""
+    description = [(col,) for col in columns]  # d[0] gives column name
     cur = MagicMock()
     cur.__enter__ = lambda s: s
     cur.__exit__ = MagicMock(return_value=False)
@@ -24,12 +24,15 @@ def make_tunnel(columns, rows):
     conn = MagicMock()
     conn.cursor.return_value = cur
 
+    driver = MagicMock()
+    driver.connect.return_value = conn
+
     tunnel = MagicMock()
     tunnel.__enter__ = lambda s: s
     tunnel.__exit__ = MagicMock(return_value=False)
-    tunnel.get_connection.return_value = conn
+    tunnel.local_port = 12345
 
-    return tunnel
+    return tunnel, driver
 
 
 @pytest.fixture(autouse=True)
@@ -42,8 +45,9 @@ def mock_config(monkeypatch):
 
 class TestCmdQuery:
     def test_table_output(self, capsys):
-        tunnel = make_tunnel(["id", "name"], [(1, "alice"), (2, "bob")])
-        with patch("burrow.commands.query.PostgresSSHTunnel", return_value=tunnel):
+        tunnel, driver = make_mocks(["id", "name"], [(1, "alice"), (2, "bob")])
+        with patch("burrow.commands.query.SSHTunnel", return_value=tunnel), \
+             patch("burrow.commands.query.get_driver", return_value=driver):
             cmd_query(make_args("SELECT 1"))
 
         out = capsys.readouterr().out
@@ -53,16 +57,18 @@ class TestCmdQuery:
     def test_json_output(self, capsys):
         import json
 
-        tunnel = make_tunnel(["id", "name"], [(1, "alice")])
-        with patch("burrow.commands.query.PostgresSSHTunnel", return_value=tunnel):
+        tunnel, driver = make_mocks(["id", "name"], [(1, "alice")])
+        with patch("burrow.commands.query.SSHTunnel", return_value=tunnel), \
+             patch("burrow.commands.query.get_driver", return_value=driver):
             cmd_query(make_args("SELECT 1", output="json"))
 
         data = json.loads(capsys.readouterr().out)
         assert data == [{"id": 1, "name": "alice"}]
 
     def test_csv_output(self, capsys):
-        tunnel = make_tunnel(["id", "name"], [(1, "alice")])
-        with patch("burrow.commands.query.PostgresSSHTunnel", return_value=tunnel):
+        tunnel, driver = make_mocks(["id", "name"], [(1, "alice")])
+        with patch("burrow.commands.query.SSHTunnel", return_value=tunnel), \
+             patch("burrow.commands.query.get_driver", return_value=driver):
             cmd_query(make_args("SELECT 1", output="csv"))
 
         lines = capsys.readouterr().out.strip().splitlines()
@@ -70,16 +76,18 @@ class TestCmdQuery:
         assert lines[1] == "1,alice"
 
     def test_no_header(self, capsys):
-        tunnel = make_tunnel(["id", "name"], [(1, "alice")])
-        with patch("burrow.commands.query.PostgresSSHTunnel", return_value=tunnel):
+        tunnel, driver = make_mocks(["id", "name"], [(1, "alice")])
+        with patch("burrow.commands.query.SSHTunnel", return_value=tunnel), \
+             patch("burrow.commands.query.get_driver", return_value=driver):
             cmd_query(make_args("SELECT 1", output="csv", no_header=True))
 
         lines = capsys.readouterr().out.strip().splitlines()
         assert lines[0] == "1,alice"
 
     def test_no_rows_prints_to_stderr(self, capsys):
-        tunnel = make_tunnel(["id"], [])
-        with patch("burrow.commands.query.PostgresSSHTunnel", return_value=tunnel):
+        tunnel, driver = make_mocks(["id"], [])
+        with patch("burrow.commands.query.SSHTunnel", return_value=tunnel), \
+             patch("burrow.commands.query.get_driver", return_value=driver):
             cmd_query(make_args("SELECT 1"))
 
         assert "(no rows)" in capsys.readouterr().err
@@ -94,12 +102,16 @@ class TestCmdQuery:
         conn = MagicMock()
         conn.cursor.return_value = cur
 
+        driver = MagicMock()
+        driver.connect.return_value = conn
+
         tunnel = MagicMock()
         tunnel.__enter__ = lambda s: s
         tunnel.__exit__ = MagicMock(return_value=False)
-        tunnel.get_connection.return_value = conn
+        tunnel.local_port = 12345
 
-        with patch("burrow.commands.query.PostgresSSHTunnel", return_value=tunnel):
+        with patch("burrow.commands.query.SSHTunnel", return_value=tunnel), \
+             patch("burrow.commands.query.get_driver", return_value=driver):
             cmd_query(make_args("DELETE FROM foo"))
 
         assert "3 row(s) affected" in capsys.readouterr().out

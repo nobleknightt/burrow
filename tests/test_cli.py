@@ -72,10 +72,20 @@ class TestDescribeCommand:
         assert args.schema == "myschema"
 
 
-class TestShellCommand:
-    def test_basic(self, parser):
-        args = parser.parse_args(["shell"])
-        assert args.command == "shell"
+class TestSkillCommand:
+    def test_install(self, parser):
+        args = parser.parse_args(["skill", "install"])
+        assert args.command == "skill"
+        assert args.skill_command == "install"
+        assert args.path is None
+
+    def test_install_with_path(self, parser):
+        args = parser.parse_args(["skill", "install", "--path", "/custom/dir"])
+        assert args.path == "/custom/dir"
+
+    def test_missing_subcommand_fails(self, parser):
+        with pytest.raises(SystemExit):
+            parser.parse_args(["skill"])
 
 
 class TestConfigCommand:

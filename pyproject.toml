@@ -1,21 +1,27 @@
 [project]
 name = "burrow"
-version = "0.2.0"
-description = "CLI for querying PostgreSQL databases via SSH tunnel or direct connection"
+version = "0.3.0"
+description = "CLI for querying PostgreSQL and MySQL databases via SSH tunnel or direct connection"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "paramiko>=4.0.0",
     "psycopg[binary]>=3.3.3",
+    "pymysql>=1.2.0",
     "tabulate>=0.10.0",
     "tomli-w>=1.2.0",
 ]
+
+[project.optional-dependencies]
+mssql  = ["pyodbc>=5.0"]
+oracle = ["oracledb>=2.0"]
 
 [project.scripts]
 burrow = "burrow.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/burrow"]
+include = ["src/burrow/SKILL.md"]
 
 [build-system]
 requires = ["hatchling"]
@@ -29,7 +35,6 @@ addopts = "--cov=burrow --cov-report=term-missing"
 source = ["src/burrow"]
 omit = [
     "src/burrow/commands/dig.py",
-    "src/burrow/commands/shell.py",
     "src/burrow/commands/describe.py",
     "src/burrow/commands/config.py",
     "src/burrow/tunnel.py",

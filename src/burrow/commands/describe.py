@@ -3,8 +3,9 @@
 import argparse
 
 from burrow.config import load_config
+from burrow.drivers import get_driver
 from burrow.output import format_table
-from burrow.tunnel import PostgresSSHTunnel
+from burrow.tunnel import SSHTunnel
 
 _LIST_TABLES = """
 SELECT
@@ -42,10 +43,14 @@ ORDER BY c.ordinal_position;
 
 def cmd_describe(args: argparse.Namespace) -> None:
     config = load_config(args.profile)
-    schema = getattr(args, "schema", None) or config.db_schema
+    # MySQL uses database name as schema; postgres uses db_schema
+    if config.db_type == "mysql":
+        schema = getattr(args, "schema", None) or config.db_name
+    else:
+        schema = getattr(args, "schema", None) or config.db_schema
 
-    with PostgresSSHTunnel(config) as tunnel:
-        conn = tunnel.get_connection()
+    with SSHTunnel(config) as tunnel:
+        conn = get_driver(config.db_type).connect(config, tunnel.local_port)
         with conn.cursor() as cur:
             if args.table:
                 cur.execute(_DESCRIBE_TABLE, (args.table, schema, args.table, schema))

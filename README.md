@@ -1,14 +1,18 @@
 # burrow
 
-CLI for querying PostgreSQL databases — directly or through an SSH tunnel to a bastion host.
+CLI for querying PostgreSQL and MySQL databases — directly or through an SSH tunnel to a bastion host.
 
 Named after the mole's burrow — a tunnel dug quietly underground to reach somewhere it has no business being. That's exactly what this tool does: bores through a bastion over SSH and surfaces inside your database as if the database were local.
 
 ## Claude Code Integration
 
-This repository includes [`SKILL.md`](SKILL.md) — a skill definition that enables AI coding agents (primarily [Claude Code](https://code.claude.com)) to use burrow effectively. The skill teaches Claude when and how to use burrow for database operations.
+After installing burrow, run `burrow skill install` to register the Claude Code skill. This teaches AI agents when and how to use burrow for database operations.
 
-While designed for Claude Code, the skill's markdown documentation can be used by other AI coding assistants as reference material.
+```bash
+burrow skill install
+```
+
+The skill is installed to `~/.claude/skills/burrow/SKILL.md` — the standard path Claude Code and compatible agents scan at session startup.
 
 ## Installation
 
@@ -28,6 +32,28 @@ While designed for Claude Code, the skill's markdown documentation can be used b
 
   Restart your shell.
 
+After installing, register the Claude Code skill:
+
+```bash
+burrow skill install
+```
+
+## Upgrading
+
+- **uv:**
+
+  ```bash
+  uv tool upgrade burrow
+  burrow skill install   # re-install updated skill
+  ```
+
+- **pip:**
+
+  ```bash
+  pip install --upgrade git+https://github.com/nobleknightt/burrow.git
+  burrow skill install   # re-install updated skill
+  ```
+
 ## Setup
 
 Run the interactive wizard to configure your first profile:
@@ -42,6 +68,10 @@ To configure additional named profiles (e.g. staging, prod), pass `--profile`:
 burrow --profile staging config set
 ```
 
+Passwords are never stored in `config.toml`. The wizard writes them to
+`~/.config/burrow/profiles/<profile>.password` (mode `0600`). You can also set
+`BURROW_DB_PASSWORD` in your environment.
+
 ## Configuration
 
 Priority order (highest wins):
@@ -50,38 +80,39 @@ Priority order (highest wins):
 2. **Config file** — `~/.config/burrow/config.toml` (override with `$BURROW_CONFIG`)
 3. **Built-in defaults** for optional fields
 
-The config file supports named profiles. Each profile can use SSH or connect directly:
+The config file supports named profiles. Passwords are stored separately — never in this file:
 
 ```toml
-# SSH tunnel (default when use_ssh is omitted)
+# PostgreSQL over SSH tunnel (use_ssh defaults to true when omitted)
 [default]
+db_type      = "postgres"
 use_ssh      = true
 ssh_host     = "bastion.example.com"
 ssh_user     = "ec2-user"
 ssh_key_path = "~/.ssh/id_rsa"
 db_host      = "mydb.cluster.us-east-1.rds.amazonaws.com"
 db_user      = "myuser"
-db_password  = "secret"
 db_name      = "mydb"
 db_schema    = "public"
+
+# MySQL over SSH tunnel
+[mysql-prod]
+db_type      = "mysql"
+use_ssh      = true
+ssh_host     = "bastion.example.com"
+ssh_user     = "ec2-user"
+ssh_key_path = "~/.ssh/id_rsa"
+db_host      = "mysql.internal"
+db_user      = "myuser"
+db_name      = "mydb"
 
 # Direct connection (no SSH)
 [local]
+db_type      = "postgres"
 use_ssh      = false
 db_host      = "localhost"
 db_user      = "myuser"
-db_password  = "secret"
 db_name      = "mydb"
-
-[staging]
-ssh_host     = "bastion-staging.example.com"
-ssh_user     = "ec2-user"
-ssh_key_path = "~/.ssh/id_rsa"
-db_host      = "mydb-staging.cluster.us-east-1.rds.amazonaws.com"
-db_user      = "myuser"
-db_password  = "secret"
-db_name      = "mydb_staging"
-db_schema    = "public"
 ```
 
 `use_ssh` defaults to `true`, so existing configs without it continue to work unchanged.
@@ -101,9 +132,6 @@ burrow --profile staging query "SELECT count(*) FROM users"
 burrow describe                    # list all tables
 burrow describe --table users      # columns, types, PKs
 
-# interactive REPL
-burrow shell
-
 # configure profiles
 burrow config set
 burrow --profile staging config set
@@ -111,4 +139,7 @@ burrow --profile staging config set
 # check resolved config (passwords redacted)
 burrow config get
 burrow --profile staging config get
+
+# install Claude Code skill
+burrow skill install
 ```

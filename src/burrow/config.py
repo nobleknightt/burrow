@@ -6,29 +6,28 @@ Priority (highest to lowest):
   2. Profile in config file  ~/.config/burrow/config.toml  (or $BURROW_CONFIG)
   3. [default] profile as fallback
 
+Passwords are never stored in config.toml. Set BURROW_DB_PASSWORD or run
+`burrow config set` to store the password in ~/.config/burrow/profiles/<profile>.password.
+
 Config file format (SSH tunnel mode):
   [default]
+  db_type      = "postgres"
   use_ssh      = true
   ssh_host     = "bastion.example.com"
   ssh_user     = "ec2-user"
   ssh_key_path = "~/.ssh/id_rsa"
-  db_host     = "mydb.cluster-xyz.us-east-1.rds.amazonaws.com"
+  db_host      = "mydb.cluster-xyz.us-east-1.rds.amazonaws.com"
   db_user      = "myuser"
-  db_password  = "secret"
   db_name      = "mydb"
   db_schema    = "public"
 
 Config file format (direct connection mode):
   [local]
+  db_type      = "mysql"
   use_ssh      = false
   db_host      = "localhost"
   db_user      = "myuser"
-  db_password  = "secret"
   db_name      = "mydb"
-
-  [staging]
-  ssh_host     = "bastion-staging.example.com"
-  # ...
 """
 
 import os
@@ -38,15 +37,15 @@ from pathlib import Path
 
 # Maps config key to (env var, required, default)
 _FIELDS: dict[str, tuple[str, bool, object]] = {
+    "db_type": ("BURROW_DB_TYPE", False, "postgres"),
     "use_ssh": ("BURROW_USE_SSH", False, True),
     "ssh_host": ("BURROW_SSH_HOST", False, None),  # conditionally required when use_ssh=True
     "ssh_user": ("BURROW_SSH_USER", False, "ec2-user"),
     "ssh_key_path": ("BURROW_SSH_KEY_PATH", False, None),  # conditionally required when use_ssh=True
     "ssh_port": ("BURROW_SSH_PORT", False, 22),
     "db_host": ("BURROW_DB_HOST", True, None),
-    "db_port": ("BURROW_DB_PORT", False, 5432),
+    "db_port": ("BURROW_DB_PORT", False, None),  # default depends on db_type: postgres=5432, mysql=3306
     "db_user": ("BURROW_DB_USER", True, None),
-    "db_password": ("BURROW_DB_PASSWORD", True, None),
     "db_name": ("BURROW_DB_NAME", True, None),
     "db_schema": ("BURROW_DB_SCHEMA", False, "public"),
     "tunnel_local_port": ("BURROW_TUNNEL_LOCAL_PORT", False, 0),
@@ -59,6 +58,7 @@ _SENSITIVE = {"db_password"}
 
 CONFIG_FILE_ENV = "BURROW_CONFIG"
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "burrow" / "config.toml"
+PROFILES_DIR = Path.home() / ".config" / "burrow" / "profiles"
 DEFAULT_PROFILE = "default"
 
 
@@ -68,6 +68,7 @@ class DatabaseConfig:
     db_user: str
     db_password: str
     db_name: str
+    db_type: str = "postgres"
     use_ssh: bool = True
     ssh_host: str | None = None
     ssh_key_path: str | None = None
@@ -81,6 +82,13 @@ class DatabaseConfig:
     def __post_init__(self) -> None:
         if self.ssh_key_path:
             self.ssh_key_path = str(Path(self.ssh_key_path).expanduser())
+
+
+def _read_password_file(profile: str) -> str | None:
+    path = PROFILES_DIR / f"{profile}.password"
+    if path.exists():
+        return path.read_text(encoding="utf-8").strip() or None
+    return None
 
 
 def load_config(profile: str = DEFAULT_PROFILE) -> DatabaseConfig:
@@ -118,6 +126,19 @@ def load_config(profile: str = DEFAULT_PROFILE) -> DatabaseConfig:
         if required:
             missing.append(f"  {key}  (env: {env_var})")
 
+    # Apply type-aware port default when not explicitly set
+    if "db_port" not in resolved:
+        resolved["db_port"] = 3306 if resolved.get("db_type") == "mysql" else 5432
+
+    # db_password: env var first, then password file — never from config.toml
+    db_password = os.environ.get("BURROW_DB_PASSWORD") or _read_password_file(profile)
+    if not db_password:
+        missing.append(
+            "  db_password  (env: BURROW_DB_PASSWORD or run 'burrow config set')"
+        )
+    else:
+        resolved["db_password"] = db_password
+
     # SSH fields are conditionally required when use_ssh is True
     if resolved.get("use_ssh", True):
         if not resolved.get("ssh_host"):
@@ -153,31 +174,16 @@ def _read_config_file(profile: str) -> dict[str, object]:
 
 
 def _missing_hint(profile: str, missing: list[str]) -> str:
-    config_path = Path(os.environ.get(CONFIG_FILE_ENV, DEFAULT_CONFIG_PATH))
     lines = [
         f"error: missing required config for profile '{profile}':",
         *missing,
         "",
-        "set them via environment variables, or add a config file:",
-        f"  {config_path}",
+        "run the setup wizard to configure this profile:",
+        "  burrow config set",
         "",
-        "example config (SSH tunnel):",
-        "  [default]",
-        '  use_ssh      = true',
-        '  ssh_host     = "bastion.example.com"',
-        '  ssh_key_path = "~/.ssh/id_rsa"',
-        '  db_host      = "mydb.cluster.us-east-1.rds.amazonaws.com"',
-        '  db_user      = "myuser"',
-        '  db_password  = "secret"',
-        '  db_name      = "mydb"',
-        "",
-        "example config (direct connection):",
-        "  [default]",
-        '  use_ssh      = false',
-        '  db_host      = "localhost"',
-        '  db_user      = "myuser"',
-        '  db_password  = "secret"',
-        '  db_name      = "mydb"',
+        "passwords are stored in:",
+        f"  {PROFILES_DIR}/<profile>.password",
+        "or set BURROW_DB_PASSWORD in your environment.",
     ]
     return "\n".join(lines)
 

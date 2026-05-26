@@ -4,6 +4,7 @@ import os
 
 import pytest
 
+import burrow.config
 from burrow.config import load_config, list_profiles
 
 
@@ -25,9 +26,15 @@ def clear_burrow_env(monkeypatch):
             monkeypatch.delenv(key, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def isolated_profiles_dir(tmp_path, monkeypatch):
+    """Point PROFILES_DIR at a fresh temp dir so password files don't bleed."""
+    monkeypatch.setattr(burrow.config, "PROFILES_DIR", tmp_path / "profiles")
+
+
 @pytest.fixture()
 def env(monkeypatch):
-    """Set all required env vars."""
+    """Set all required env vars (including BURROW_DB_PASSWORD)."""
     for k, v in REQUIRED.items():
         monkeypatch.setenv(k, v)
 
@@ -46,6 +53,10 @@ class TestLoadConfigFromEnv:
         assert cfg.db_port == 5432
         assert cfg.db_schema == "public"
         assert cfg.connection_timeout == 10
+
+    def test_db_type_defaults_to_postgres(self, env):
+        cfg = load_config()
+        assert cfg.db_type == "postgres"
 
     def test_int_fields_coerced(self, env, monkeypatch):
         monkeypatch.setenv("BURROW_SSH_PORT", "2222")
@@ -71,6 +82,110 @@ class TestLoadConfigFromEnv:
             load_config()
 
 
+class TestPasswordResolution:
+    def test_password_from_env(self, env):
+        cfg = load_config()
+        assert cfg.db_password == "secret"
+
+    def test_password_from_file(self, tmp_path, monkeypatch):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "default.password").write_text("filepassword")
+        monkeypatch.setattr(burrow.config, "PROFILES_DIR", profiles_dir)
+
+        for k, v in {
+            "BURROW_SSH_HOST": "bastion.example.com",
+            "BURROW_SSH_KEY_PATH": "~/.ssh/id_rsa",
+            "BURROW_DB_HOST": "db.example.com",
+            "BURROW_DB_USER": "myuser",
+            "BURROW_DB_NAME": "mydb",
+        }.items():
+            monkeypatch.setenv(k, v)
+
+        cfg = load_config()
+        assert cfg.db_password == "filepassword"
+
+    def test_env_wins_over_file(self, tmp_path, monkeypatch):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "default.password").write_text("filepassword")
+        monkeypatch.setattr(burrow.config, "PROFILES_DIR", profiles_dir)
+
+        for k, v in {
+            "BURROW_SSH_HOST": "bastion.example.com",
+            "BURROW_SSH_KEY_PATH": "~/.ssh/id_rsa",
+            "BURROW_DB_HOST": "db.example.com",
+            "BURROW_DB_USER": "myuser",
+            "BURROW_DB_NAME": "mydb",
+            "BURROW_DB_PASSWORD": "envpassword",
+        }.items():
+            monkeypatch.setenv(k, v)
+
+        cfg = load_config()
+        assert cfg.db_password == "envpassword"
+
+    def test_password_file_strips_whitespace(self, tmp_path, monkeypatch):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "default.password").write_text("  mypassword\n")
+        monkeypatch.setattr(burrow.config, "PROFILES_DIR", profiles_dir)
+
+        for k, v in {
+            "BURROW_SSH_HOST": "bastion.example.com",
+            "BURROW_SSH_KEY_PATH": "~/.ssh/id_rsa",
+            "BURROW_DB_HOST": "db.example.com",
+            "BURROW_DB_USER": "myuser",
+            "BURROW_DB_NAME": "mydb",
+        }.items():
+            monkeypatch.setenv(k, v)
+
+        cfg = load_config()
+        assert cfg.db_password == "mypassword"
+
+
+class TestDbType:
+    def test_mysql_uses_port_3306_by_default(self, monkeypatch):
+        for k, v in {
+            "BURROW_USE_SSH": "false",
+            "BURROW_DB_TYPE": "mysql",
+            "BURROW_DB_HOST": "db.example.com",
+            "BURROW_DB_USER": "myuser",
+            "BURROW_DB_PASSWORD": "secret",
+            "BURROW_DB_NAME": "mydb",
+        }.items():
+            monkeypatch.setenv(k, v)
+        cfg = load_config()
+        assert cfg.db_type == "mysql"
+        assert cfg.db_port == 3306
+
+    def test_postgres_uses_port_5432_by_default(self, monkeypatch):
+        for k, v in {
+            "BURROW_USE_SSH": "false",
+            "BURROW_DB_HOST": "db.example.com",
+            "BURROW_DB_USER": "myuser",
+            "BURROW_DB_PASSWORD": "secret",
+            "BURROW_DB_NAME": "mydb",
+        }.items():
+            monkeypatch.setenv(k, v)
+        cfg = load_config()
+        assert cfg.db_type == "postgres"
+        assert cfg.db_port == 5432
+
+    def test_explicit_port_overrides_type_default(self, monkeypatch):
+        for k, v in {
+            "BURROW_USE_SSH": "false",
+            "BURROW_DB_TYPE": "mysql",
+            "BURROW_DB_PORT": "3307",
+            "BURROW_DB_HOST": "db.example.com",
+            "BURROW_DB_USER": "myuser",
+            "BURROW_DB_PASSWORD": "secret",
+            "BURROW_DB_NAME": "mydb",
+        }.items():
+            monkeypatch.setenv(k, v)
+        cfg = load_config()
+        assert cfg.db_port == 3307
+
+
 class TestLoadConfigFromFile:
     def test_reads_default_profile(self, tmp_path, monkeypatch):
         config_file = tmp_path / "config.toml"
@@ -78,12 +193,12 @@ class TestLoadConfigFromFile:
             "[default]\n"
             'ssh_host     = "bastion.example.com"\n'
             'ssh_key_path = "~/.ssh/id_rsa"\n'
-            'db_host     = "db.example.com"\n'
+            'db_host      = "db.example.com"\n'
             'db_user      = "myuser"\n'
-            'db_password  = "secret"\n'
             'db_name      = "mydb"\n'
         )
         monkeypatch.setenv("BURROW_CONFIG", str(config_file))
+        monkeypatch.setenv("BURROW_DB_PASSWORD", "secret")
         cfg = load_config()
         assert cfg.ssh_host == "bastion.example.com"
         assert cfg.db_name == "mydb"
@@ -94,20 +209,19 @@ class TestLoadConfigFromFile:
             "[default]\n"
             'ssh_host     = "bastion.example.com"\n'
             'ssh_key_path = "~/.ssh/id_rsa"\n'
-            'db_host     = "db.example.com"\n'
+            'db_host      = "db.example.com"\n'
             'db_user      = "myuser"\n'
-            'db_password  = "secret"\n'
             'db_name      = "mydb"\n'
             "\n"
             "[staging]\n"
             'ssh_host     = "bastion-staging.example.com"\n'
             'ssh_key_path = "~/.ssh/id_rsa"\n'
-            'db_host     = "db-staging.example.com"\n'
+            'db_host      = "db-staging.example.com"\n'
             'db_user      = "myuser"\n'
-            'db_password  = "secret"\n'
             'db_name      = "mydb_staging"\n'
         )
         monkeypatch.setenv("BURROW_CONFIG", str(config_file))
+        monkeypatch.setenv("BURROW_DB_PASSWORD", "secret")
         cfg = load_config(profile="staging")
         assert cfg.ssh_host == "bastion-staging.example.com"
         assert cfg.db_name == "mydb_staging"
@@ -132,12 +246,12 @@ class TestLoadConfigFromFile:
             "[default]\n"
             'ssh_host     = "file-bastion.example.com"\n'
             'ssh_key_path = "~/.ssh/id_rsa"\n'
-            'db_host     = "db.example.com"\n'
+            'db_host      = "db.example.com"\n'
             'db_user      = "myuser"\n'
-            'db_password  = "secret"\n'
             'db_name      = "mydb"\n'
         )
         monkeypatch.setenv("BURROW_CONFIG", str(config_file))
+        monkeypatch.setenv("BURROW_DB_PASSWORD", "secret")
         monkeypatch.setenv("BURROW_SSH_HOST", "env-bastion.example.com")
         cfg = load_config()
         assert cfg.ssh_host == "env-bastion.example.com"
@@ -224,10 +338,10 @@ class TestDirectConnectionMode:
             "use_ssh      = false\n"
             'db_host      = "localhost"\n'
             'db_user      = "myuser"\n'
-            'db_password  = "secret"\n'
             'db_name      = "mydb"\n'
         )
         monkeypatch.setenv("BURROW_CONFIG", str(config_file))
+        monkeypatch.setenv("BURROW_DB_PASSWORD", "secret")
         cfg = load_config()
         assert cfg.use_ssh is False
         assert cfg.db_host == "localhost"

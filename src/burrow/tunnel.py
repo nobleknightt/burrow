@@ -1,4 +1,4 @@
-"""SSH tunnel + PostgreSQL connection management."""
+"""SSH tunnel management."""
 
 import select
 import socket
@@ -6,13 +6,12 @@ import threading
 from types import TracebackType
 
 import paramiko
-import psycopg
 
 from burrow.config import DatabaseConfig
 
 
-class PostgresSSHTunnel:
-    """PostgreSQL connection through an SSH tunnel using paramiko."""
+class SSHTunnel:
+    """SSH tunnel using paramiko. db-agnostic — use drivers/ to get a connection."""
 
     def __init__(self, config: DatabaseConfig) -> None:
         self.config = config
@@ -102,28 +101,7 @@ class PostgresSSHTunnel:
         if self.client:
             self.client.close()
 
-    def get_connection(self) -> psycopg.Connection:
-        if not self.config.use_ssh:
-            return psycopg.connect(
-                host=self.config.db_host,
-                port=self.config.db_port,
-                user=self.config.db_user,
-                password=self.config.db_password,
-                dbname=self.config.db_name,
-                options=f"-c search_path={self.config.db_schema}",
-            )
-        if not self.transport or not self.local_port:
-            raise RuntimeError("Tunnel not started - call start() first.")
-        return psycopg.connect(
-            host="127.0.0.1",
-            port=self.local_port,
-            user=self.config.db_user,
-            password=self.config.db_password,
-            dbname=self.config.db_name,
-            options=f"-c search_path={self.config.db_schema}",
-        )
-
-    def __enter__(self) -> "PostgresSSHTunnel":
+    def __enter__(self) -> "SSHTunnel":
         self.start()
         return self
 
