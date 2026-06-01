@@ -36,20 +36,7 @@ burrow -p <profile> query --output csv  "SELECT * FROM some_table"
 ```bash
 burrow -p <profile> describe                          # list all tables
 burrow -p <profile> describe --table some_table       # show columns, types, primary keys
-burrow -p <profile> describe --schema myschema --table some_table
-```
-
-### Show resolved config
-
-```bash
-burrow -p <profile> config get        # show resolved config (password redacted)
-burrow config list                    # list all profiles
-```
-
-### Install Claude Code skill
-
-```bash
-burrow skill install
+burrow -p <profile> describe --schema public --table some_table
 ```
 
 ## Workflow

@@ -6,6 +6,8 @@ def get_driver(db_type: str):
         from burrow.drivers import mysql
 
         return mysql
-    from burrow.drivers import postgres
+    if db_type == "postgres":
+        from burrow.drivers import postgres
 
-    return postgres
+        return postgres
+    raise ValueError(f"Unsupported db_type '{db_type}'. Choose 'postgres' or 'mysql'.")

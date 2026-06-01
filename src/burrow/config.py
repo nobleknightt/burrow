@@ -16,9 +16,9 @@ Config file format (SSH tunnel mode):
   ssh_host     = "bastion.example.com"
   ssh_user     = "ec2-user"
   ssh_key_path = "~/.ssh/id_rsa"
-  db_host      = "mydb.cluster-xyz.us-east-1.rds.amazonaws.com"
-  db_user      = "myuser"
-  db_name      = "mydb"
+  db_host      = "db.cluster-xyz.us-east-1.rds.amazonaws.com"
+  db_user      = "appuser"
+  db_name      = "appdb"
   db_schema    = "public"
 
 Config file format (direct connection mode):
@@ -26,8 +26,8 @@ Config file format (direct connection mode):
   db_type      = "mysql"
   use_ssh      = false
   db_host      = "localhost"
-  db_user      = "myuser"
-  db_name      = "mydb"
+  db_user      = "appuser"
+  db_name      = "appdb"
 """
 
 import os

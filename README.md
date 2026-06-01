@@ -90,9 +90,9 @@ use_ssh      = true
 ssh_host     = "bastion.example.com"
 ssh_user     = "ec2-user"
 ssh_key_path = "~/.ssh/id_rsa"
-db_host      = "mydb.cluster.us-east-1.rds.amazonaws.com"
-db_user      = "myuser"
-db_name      = "mydb"
+db_host      = "db.cluster.us-east-1.rds.amazonaws.com"
+db_user      = "appuser"
+db_name      = "appdb"
 db_schema    = "public"
 
 # MySQL over SSH tunnel
@@ -103,16 +103,16 @@ ssh_host     = "bastion.example.com"
 ssh_user     = "ec2-user"
 ssh_key_path = "~/.ssh/id_rsa"
 db_host      = "mysql.internal"
-db_user      = "myuser"
-db_name      = "mydb"
+db_user      = "appuser"
+db_name      = "appdb"
 
 # Direct connection (no SSH)
 [local]
 db_type      = "postgres"
 use_ssh      = false
 db_host      = "localhost"
-db_user      = "myuser"
-db_name      = "mydb"
+db_user      = "appuser"
+db_name      = "appdb"
 ```
 
 `use_ssh` defaults to `true`, so existing configs without it continue to work unchanged.
@@ -129,15 +129,24 @@ burrow query "SELECT * FROM products" --output csv
 burrow --profile staging query "SELECT count(*) FROM users"
 
 # inspect schema
-burrow describe                    # list all tables
-burrow describe --table users      # columns, types, PKs
+burrow describe                               # list all tables
+burrow describe --table users                 # columns, types, PKs
+burrow describe --schema public --table users
 
-# configure profiles
+# list all profiles
+burrow config list
+
+# configure a profile
 burrow config set
 burrow --profile staging config set
 
+# remove a profile
+burrow config unset default
+burrow config unset staging
+
 # check resolved config (passwords redacted)
 burrow config get
+burrow config get db_host
 burrow --profile staging config get
 
 # install Claude Code skill

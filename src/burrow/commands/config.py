@@ -1,7 +1,7 @@
 """burrow config - manage profiles in the config file.
 
 burrow config set                    interactive wizard for active profile
-burrow config set --profile staging  wizard for a named profile
+burrow --profile staging config set  wizard for a named profile
 burrow config list                   list all profiles
 burrow config get [key]              show resolved values (or one key)
 burrow config unset <profile>        remove a profile

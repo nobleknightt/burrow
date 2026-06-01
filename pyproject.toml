@@ -12,10 +12,6 @@ dependencies = [
     "tomli-w>=1.2.0",
 ]
 
-[project.optional-dependencies]
-mssql  = ["pyodbc>=5.0"]
-oracle = ["oracledb>=2.0"]
-
 [project.scripts]
 burrow = "burrow.cli:main"
 
