@@ -1,6 +1,6 @@
 ---
 name: burrow
-version: "0.3.0"
+version: "0.4.0"
 description: Queries PostgreSQL and MySQL databases using the burrow CLI — via SSH tunnel through a bastion host or direct connection. Use when the user needs to run SQL queries, inspect database tables or schemas, explore data structure, or analyze data in remote databases. Trigger for database queries, postgres, postgresql, mysql, SQL, SSH tunnel, bastion host, remote database, schema inspection, table exploration, data analysis, burrow CLI.
 when_to_use: database queries, inspect tables, SQL, postgres, postgresql, mysql, SSH tunnel, bastion, remote database, burrow, schema inspection, data exploration, table structure
 allowed-tools: Bash(burrow *)

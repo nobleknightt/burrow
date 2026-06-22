@@ -4,15 +4,21 @@ CLI for querying PostgreSQL and MySQL databases — directly or through an SSH t
 
 Named after the mole's burrow — a tunnel dug quietly underground to reach somewhere it has no business being. That's exactly what this tool does: bores through a bastion over SSH and surfaces inside your database as if the database were local.
 
-## Claude Code Integration
+## Agent Skills
 
-After installing burrow, run `burrow skill install` to register the Claude Code skill. This teaches AI agents when and how to use burrow for database operations.
+burrow ships an [Agent Skills](https://agentskills.io) skill. Run `burrow skill install` after installing to register it — the agent will then know when and how to use burrow automatically.
 
 ```bash
 burrow skill install
 ```
 
-The skill is installed to `~/.claude/skills/burrow/SKILL.md` — the standard path Claude Code and compatible agents scan at session startup.
+Installs to `~/.agents/skills/burrow/SKILL.md` — the universal [Agent Skills](https://agentskills.io) path supported by Codex, Cursor, GitHub Copilot, OpenCode, and others. To install for a specific agent or a custom directory:
+
+```bash
+burrow skill install --agent claude-code
+burrow skill install --agent cursor,copilot
+burrow skill install --path /path/to/skills/dir
+```
 
 ## Installation
 
@@ -32,7 +38,7 @@ The skill is installed to `~/.claude/skills/burrow/SKILL.md` — the standard pa
 
   Restart your shell.
 
-After installing, register the Claude Code skill:
+After installing, register the agent skill:
 
 ```bash
 burrow skill install
@@ -182,6 +188,6 @@ burrow config get
 burrow config get db_host
 burrow --profile staging config get
 
-# install Claude Code skill
+# install agent skill
 burrow skill install
 ```

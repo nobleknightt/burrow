@@ -78,10 +78,19 @@ class TestSkillCommand:
         assert args.command == "skill"
         assert args.skill_command == "install"
         assert args.path is None
+        assert args.agent is None
 
     def test_install_with_path(self, parser):
         args = parser.parse_args(["skill", "install", "--path", "/custom/dir"])
         assert args.path == "/custom/dir"
+
+    def test_install_with_agent(self, parser):
+        args = parser.parse_args(["skill", "install", "--agent", "claude-code"])
+        assert args.agent == "claude-code"
+
+    def test_install_with_multiple_agents(self, parser):
+        args = parser.parse_args(["skill", "install", "--agent", "cursor,copilot"])
+        assert args.agent == "cursor,copilot"
 
     def test_missing_subcommand_fails(self, parser):
         with pytest.raises(SystemExit):

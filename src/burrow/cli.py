@@ -71,15 +71,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # skill
-    p_skill = sub.add_parser("skill", help="Manage Claude Code skill installation")
+    p_skill = sub.add_parser("skill", help="Manage Agent Skills installation")
     skill_sub = p_skill.add_subparsers(dest="skill_command", required=True)
     p_skill_install = skill_sub.add_parser(
-        "install", help="Install skill to ~/.claude/skills/burrow/SKILL.md"
+        "install", help="Install skill to ~/.agents/skills/ or a specific agent"
+    )
+    p_skill_install.add_argument(
+        "--agent",
+        metavar="AGENT",
+        help="Comma-separated agent names: agents, claude-code, cursor, codex, copilot, opencode",
     )
     p_skill_install.add_argument(
         "--path",
         metavar="DIR",
-        help="Install to a custom directory instead of ~/.claude/skills/burrow",
+        help="Install to a custom directory instead of the agent default",
     )
 
     # easter egg - intentionally undocumented
