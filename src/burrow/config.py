@@ -13,10 +13,10 @@ Config file format (SSH tunnel mode):
   [default]
   db_type      = "postgres"
   use_ssh      = true
-  ssh_host     = "bastion.example.com"
-  ssh_user     = "ec2-user"
+  ssh_host     = "ssh.example.com"
+  ssh_user     = "sshuser"
   ssh_key_path = "~/.ssh/id_rsa"
-  db_host      = "db.cluster-xyz.us-east-1.rds.amazonaws.com"
+  db_host      = "db.example.com"
   db_user      = "appuser"
   db_name      = "appdb"
   db_schema    = "public"
@@ -33,28 +33,58 @@ Config file format (direct connection mode):
 import os
 import tomllib
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
+
+class AccessMode(str, Enum):
+    READ = "read"
+    READWRITE = "readwrite"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class DBType(str, Enum):
+    POSTGRES = "postgres"
+    MYSQL = "mysql"
+
+    def __str__(self) -> str:
+        return self.value
+
 
 # Maps config key to (env var, required, default)
 _FIELDS: dict[str, tuple[str, bool, object]] = {
-    "db_type": ("BURROW_DB_TYPE", False, "postgres"),
+    "db_type": ("BURROW_DB_TYPE", False, DBType.POSTGRES),
     "use_ssh": ("BURROW_USE_SSH", False, True),
     "ssh_host": ("BURROW_SSH_HOST", False, None),  # conditionally required when use_ssh=True
-    "ssh_user": ("BURROW_SSH_USER", False, "ec2-user"),
+    "ssh_user": ("BURROW_SSH_USER", False, None),
     "ssh_key_path": ("BURROW_SSH_KEY_PATH", False, None),  # conditionally required when use_ssh=True
     "ssh_port": ("BURROW_SSH_PORT", False, 22),
     "db_host": ("BURROW_DB_HOST", True, None),
-    "db_port": ("BURROW_DB_PORT", False, None),  # default depends on db_type: postgres=5432, mysql=3306
+    "db_port": ("BURROW_DB_PORT", False, None),
     "db_user": ("BURROW_DB_USER", True, None),
     "db_name": ("BURROW_DB_NAME", True, None),
     "db_schema": ("BURROW_DB_SCHEMA", False, "public"),
     "tunnel_local_port": ("BURROW_TUNNEL_LOCAL_PORT", False, 0),
     "connection_timeout": ("BURROW_CONNECTION_TIMEOUT", False, 10),
+    "access_mode": ("BURROW_ACCESS_MODE", False, AccessMode.READWRITE),
 }
 
 _INT_FIELDS = {"ssh_port", "db_port", "tunnel_local_port", "connection_timeout"}
 _BOOL_FIELDS = {"use_ssh"}
+_ENUM_FIELDS: dict[str, type[Enum]] = {
+    "db_type": DBType,
+    "access_mode": AccessMode,
+}
 _SENSITIVE = {"db_password"}
+
+
+def _coerce_enum(key: str, value: object, enum_cls: type[Enum]) -> Enum:
+    try:
+        return enum_cls(str(value).lower())
+    except ValueError:
+        valid = ", ".join(f'"{m.value}"' for m in enum_cls)
+        raise SystemExit(f"error: invalid value '{value}' for {key} — must be one of {valid}")
 
 CONFIG_FILE_ENV = "BURROW_CONFIG"
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "burrow" / "config.toml"
@@ -68,16 +98,17 @@ class DatabaseConfig:
     db_user: str
     db_password: str
     db_name: str
-    db_type: str = "postgres"
+    db_type: DBType = DBType.POSTGRES
     use_ssh: bool = True
     ssh_host: str | None = None
     ssh_key_path: str | None = None
-    ssh_user: str = "ec2-user"
+    ssh_user: str | None = None
     ssh_port: int = 22
     db_port: int = 5432
     db_schema: str = "public"
     tunnel_local_port: int = 0
     connection_timeout: int = 10
+    access_mode: AccessMode = AccessMode.READWRITE
 
     def __post_init__(self) -> None:
         if self.ssh_key_path:
@@ -108,6 +139,8 @@ def load_config(profile: str = DEFAULT_PROFILE) -> DatabaseConfig:
                 resolved[key] = int(value)
             elif key in _BOOL_FIELDS:
                 resolved[key] = value.lower() not in ("false", "0", "no", "off")
+            elif key in _ENUM_FIELDS:
+                resolved[key] = _coerce_enum(key, value, _ENUM_FIELDS[key])
             else:
                 resolved[key] = value
             continue
@@ -115,7 +148,12 @@ def load_config(profile: str = DEFAULT_PROFILE) -> DatabaseConfig:
         # 2. config file
         if key in file_values:
             value = file_values[key]
-            resolved[key] = int(value) if key in _INT_FIELDS else value
+            if key in _INT_FIELDS:
+                resolved[key] = int(value)
+            elif key in _ENUM_FIELDS:
+                resolved[key] = _coerce_enum(key, value, _ENUM_FIELDS[key])
+            else:
+                resolved[key] = value
             continue
 
         # 3. default
@@ -128,7 +166,7 @@ def load_config(profile: str = DEFAULT_PROFILE) -> DatabaseConfig:
 
     # Apply type-aware port default when not explicitly set
     if "db_port" not in resolved:
-        resolved["db_port"] = 3306 if resolved.get("db_type") == "mysql" else 5432
+        resolved["db_port"] = 3306 if resolved.get("db_type") == DBType.MYSQL else 5432
 
     # db_password: env var first, then password file — never from config.toml
     db_password = os.environ.get("BURROW_DB_PASSWORD") or _read_password_file(profile)
@@ -145,6 +183,8 @@ def load_config(profile: str = DEFAULT_PROFILE) -> DatabaseConfig:
             missing.append("  ssh_host  (env: BURROW_SSH_HOST)")
         if not resolved.get("ssh_key_path"):
             missing.append("  ssh_key_path  (env: BURROW_SSH_KEY_PATH)")
+        if not resolved.get("ssh_user"):
+            missing.append("  ssh_user  (env: BURROW_SSH_USER)")
 
     if missing:
         hint = _missing_hint(profile, missing)

@@ -72,6 +72,15 @@ Passwords are never stored in `config.toml`. The wizard writes them to
 `~/.config/burrow/profiles/<profile>.password` (mode `0600`). You can also set
 `BURROW_DB_PASSWORD` in your environment.
 
+To update a single field without running the full wizard:
+
+```bash
+burrow config set db_host <value>
+burrow config set access_mode read
+burrow config set db_port 5433
+burrow --profile staging config set db_name <value>
+```
+
 ## Configuration
 
 Priority order (highest wins):
@@ -87,22 +96,35 @@ The config file supports named profiles. Passwords are stored separately — nev
 [default]
 db_type      = "postgres"
 use_ssh      = true
-ssh_host     = "bastion.example.com"
-ssh_user     = "ec2-user"
+ssh_host     = "ssh.example.com"
+ssh_user     = "sshuser"
 ssh_key_path = "~/.ssh/id_rsa"
-db_host      = "db.cluster.us-east-1.rds.amazonaws.com"
+db_host      = "db.example.com"
 db_user      = "appuser"
 db_name      = "appdb"
 db_schema    = "public"
+access_mode  = "readwrite"
+
+# Read-only replica (access_mode = "read" blocks INSERT/UPDATE/DELETE/DDL)
+[readonly]
+db_type      = "postgres"
+use_ssh      = true
+ssh_host     = "ssh.example.com"
+ssh_user     = "sshuser"
+ssh_key_path = "~/.ssh/id_rsa"
+db_host      = "db-replica.example.com"
+db_user      = "appuser"
+db_name      = "appdb"
+access_mode  = "read"
 
 # MySQL over SSH tunnel
 [mysql-prod]
 db_type      = "mysql"
 use_ssh      = true
-ssh_host     = "bastion.example.com"
-ssh_user     = "ec2-user"
+ssh_host     = "ssh.example.com"
+ssh_user     = "sshuser"
 ssh_key_path = "~/.ssh/id_rsa"
-db_host      = "mysql.internal"
+db_host      = "db.example.com"
 db_user      = "appuser"
 db_name      = "appdb"
 
@@ -116,6 +138,11 @@ db_name      = "appdb"
 ```
 
 `use_ssh` defaults to `true`, so existing configs without it continue to work unchanged.
+
+> [!WARNING]
+> `access_mode = "read"` is a client-side guard — it blocks common write statements (INSERT,
+> UPDATE, DELETE, TRUNCATE, DDL) but does not enforce read-only at the database level. For true
+> read-only access, use database credentials that only have SELECT privileges.
 
 ## Usage
 
@@ -136,9 +163,15 @@ burrow describe --schema public --table users
 # list all profiles
 burrow config list
 
-# configure a profile
+# configure a profile (interactive wizard)
 burrow config set
 burrow --profile staging config set
+
+# update a single field
+burrow config set db_host <value>
+burrow config set access_mode read
+burrow config set db_port 5433
+burrow --profile staging config set db_name <value>
 
 # remove a profile
 burrow config unset default

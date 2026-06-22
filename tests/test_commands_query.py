@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from burrow.commands.query import cmd_query
+from burrow.config import AccessMode
 
 
 def make_args(sql, output="table", no_header=False, profile="default"):
@@ -38,6 +39,7 @@ def make_mocks(columns, rows):
 @pytest.fixture(autouse=True)
 def mock_config(monkeypatch):
     cfg = MagicMock()
+    cfg.access_mode = AccessMode.READWRITE
     monkeypatch.setattr(
         "burrow.commands.query.load_config", lambda profile="default": cfg
     )
@@ -115,3 +117,54 @@ class TestCmdQuery:
             cmd_query(make_args("DELETE FROM foo"))
 
         assert "3 row(s) affected" in capsys.readouterr().out
+
+
+class TestAccessMode:
+    def test_read_mode_blocks_insert(self, monkeypatch):
+        cfg = MagicMock()
+        cfg.access_mode = AccessMode.READ
+        monkeypatch.setattr("burrow.commands.query.load_config", lambda profile="default": cfg)
+
+        with pytest.raises(SystemExit, match="INSERT"):
+            cmd_query(make_args("INSERT INTO users VALUES (1)"))
+
+    def test_read_mode_blocks_update(self, monkeypatch):
+        cfg = MagicMock()
+        cfg.access_mode = AccessMode.READ
+        monkeypatch.setattr("burrow.commands.query.load_config", lambda profile="default": cfg)
+
+        with pytest.raises(SystemExit, match="UPDATE"):
+            cmd_query(make_args("UPDATE users SET name = 'x'"))
+
+    def test_read_mode_allows_select(self, monkeypatch):
+        cfg = MagicMock()
+        cfg.access_mode = AccessMode.READ
+        monkeypatch.setattr("burrow.commands.query.load_config", lambda profile="default": cfg)
+
+        tunnel, driver = make_mocks(["id"], [(1,)])
+        with patch("burrow.commands.query.SSHTunnel", return_value=tunnel), \
+             patch("burrow.commands.query.get_driver", return_value=driver):
+            cmd_query(make_args("SELECT 1"))  # no exception
+
+    def test_readwrite_mode_allows_delete(self, monkeypatch):
+        cfg = MagicMock()
+        cfg.access_mode = AccessMode.READWRITE
+        monkeypatch.setattr("burrow.commands.query.load_config", lambda profile="default": cfg)
+
+        cur = MagicMock()
+        cur.__enter__ = lambda s: s
+        cur.__exit__ = MagicMock(return_value=False)
+        cur.description = None
+        cur.rowcount = 1
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+        driver = MagicMock()
+        driver.connect.return_value = conn
+        tunnel = MagicMock()
+        tunnel.__enter__ = lambda s: s
+        tunnel.__exit__ = MagicMock(return_value=False)
+        tunnel.local_port = 12345
+
+        with patch("burrow.commands.query.SSHTunnel", return_value=tunnel), \
+             patch("burrow.commands.query.get_driver", return_value=driver):
+            cmd_query(make_args("DELETE FROM users"))  # no exception

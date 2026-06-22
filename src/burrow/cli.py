@@ -53,7 +53,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_cfg = sub.add_parser("config", help="Manage configuration and profiles")
     cfg_sub = p_cfg.add_subparsers(dest="config_command", required=True)
 
-    cfg_sub.add_parser("set", help="Interactively configure a profile")
+    p_cfg_set = cfg_sub.add_parser(
+        "set", help="Configure a profile (wizard) or update a single field"
+    )
+    p_cfg_set.add_argument("key", nargs="?", help="Field to update (omit for full wizard)")
+    p_cfg_set.add_argument("value", nargs="?", help="New value")
     cfg_sub.add_parser("list", help="List all profiles")
 
     p_cfg_get = cfg_sub.add_parser("get", help="Show resolved config for a profile")

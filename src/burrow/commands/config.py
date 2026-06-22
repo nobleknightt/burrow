@@ -20,16 +20,19 @@ from burrow.config import (
     DEFAULT_CONFIG_PATH,
     DEFAULT_PROFILE,
     PROFILES_DIR,
+    _BOOL_FIELDS,
+    _ENUM_FIELDS,
     _FIELDS,
     _INT_FIELDS,
     _SENSITIVE,
+    _coerce_enum,
     list_profiles,
     load_config,
 )
 
 _SSH_PROMPTS = [
     ("ssh_host", "Bastion host (IP or hostname)", True),
-    ("ssh_user", "SSH username", False),
+    ("ssh_user", "SSH username", True),
     ("ssh_key_path", "Path to SSH private key", True),
     ("ssh_port", "SSH port", False),
 ]
@@ -55,6 +58,10 @@ def cmd_config(args: argparse.Namespace) -> None:
 
 
 def _cmd_set(args: argparse.Namespace) -> None:
+    if getattr(args, "key", None):
+        _cmd_set_field(args)
+        return
+
     profile = args.profile
     config_path = _config_path()
     existing = _read_raw(config_path)
@@ -67,7 +74,8 @@ def _cmd_set(args: argparse.Namespace) -> None:
     updated: dict[str, object] = {}
 
     # db_type
-    current_db_type = current.get("db_type", "postgres")
+    stored_db_type = str(current.get("db_type", "postgres"))
+    current_db_type = stored_db_type if stored_db_type in ("postgres", "mysql") else "postgres"
     raw = input(f"  Database type [postgres/mysql] [{current_db_type}]: ").strip().lower()
     db_type = raw if raw in ("postgres", "mysql") else current_db_type
     updated["db_type"] = db_type
@@ -119,6 +127,12 @@ def _cmd_set(args: argparse.Namespace) -> None:
         value = input(f"  Default schema [{current_val}]: ").strip()
         updated["db_schema"] = value or current_val
 
+    # access_mode
+    stored_access = str(current.get("access_mode", "readwrite"))
+    current_access = stored_access if stored_access in ("read", "readwrite") else "readwrite"
+    raw = input(f"  Access mode [read/readwrite] [{current_access}]: ").strip().lower()
+    updated["access_mode"] = raw if raw in ("read", "readwrite") else current_access
+
     # Password — written to separate file, never to config.toml
     password_file = _password_path(profile)
     has_existing = password_file.exists()
@@ -137,6 +151,54 @@ def _cmd_set(args: argparse.Namespace) -> None:
     print(f"\nProfile '{profile}' saved to {config_path}")
     if value:
         print(f"Password saved to {password_file}")
+
+
+def _cmd_set_field(args: argparse.Namespace) -> None:
+    key = args.key
+    profile = args.profile
+
+    # db_password is stored separately — prompt if no value given
+    if key == "db_password":
+        value = getattr(args, "value", None) or getpass.getpass("  Database password: ").strip()
+        if not value:
+            print("  db_password is required.", file=sys.stderr)
+            sys.exit(1)
+        _write_password(profile, value)
+        print(f"Password updated for profile '{profile}'.")
+        return
+
+    valid_keys = sorted(_FIELDS.keys()) + ["db_password"]
+    if key not in _FIELDS:
+        print(f"error: unknown key '{key}'", file=sys.stderr)
+        print(f"valid keys: {', '.join(valid_keys)}", file=sys.stderr)
+        sys.exit(1)
+
+    raw = getattr(args, "value", None)
+    if raw is None:
+        print(f"error: value required — usage: burrow config set {key} <value>", file=sys.stderr)
+        sys.exit(1)
+
+    if key in _INT_FIELDS:
+        try:
+            coerced = int(raw)
+        except ValueError:
+            print(f"error: '{key}' must be an integer", file=sys.stderr)
+            sys.exit(1)
+    elif key in _BOOL_FIELDS:
+        coerced = raw.lower() not in ("false", "0", "no", "off")
+    elif key in _ENUM_FIELDS:
+        enum_val = _coerce_enum(key, raw, _ENUM_FIELDS[key])
+        coerced = str(enum_val)
+    else:
+        coerced = raw
+
+    config_path = _config_path()
+    data = _read_raw(config_path)
+    if profile not in data:
+        data[profile] = {}
+    data[profile][key] = coerced
+    _write(config_path, data)
+    print(f"'{key}' set to '{coerced}' for profile '{profile}'.")
 
 
 def _cmd_list() -> None:

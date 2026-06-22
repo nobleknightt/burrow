@@ -68,8 +68,8 @@ class TestDescribeCommand:
         assert args.table == "orders"
 
     def test_with_schema(self, parser):
-        args = parser.parse_args(["describe", "--schema", "myschema"])
-        assert args.schema == "myschema"
+        args = parser.parse_args(["describe", "--schema", "appschema"])
+        assert args.schema == "appschema"
 
 
 class TestSkillCommand:
@@ -89,10 +89,23 @@ class TestSkillCommand:
 
 
 class TestConfigCommand:
-    def test_set(self, parser):
+    def test_set_wizard(self, parser):
         args = parser.parse_args(["config", "set"])
         assert args.command == "config"
         assert args.config_command == "set"
+        assert args.key is None
+        assert args.value is None
+
+    def test_set_single_field(self, parser):
+        args = parser.parse_args(["config", "set", "db_port", "5433"])
+        assert args.config_command == "set"
+        assert args.key == "db_port"
+        assert args.value == "5433"
+
+    def test_set_single_field_no_value(self, parser):
+        args = parser.parse_args(["config", "set", "db_host"])
+        assert args.key == "db_host"
+        assert args.value is None
 
     def test_list(self, parser):
         args = parser.parse_args(["config", "list"])
